@@ -1,0 +1,404 @@
+<!doctype html>
+<html>
+<head>
+<title></title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+<script>
+
+// サーバを指定する場合は server = 'http://192.168.11.9/' などとする
+const server = ''
+
+// 更新間隔(msec)
+const interval = 5000
+
+// 編集中の message id
+var edit_id = null
+
+// 取得したサーバの時刻
+var server_time = null
+
+// filter mode (none, important, not_important)
+const filter_mode = {
+    none: 'none',
+    important: 'important',
+    not_important: 'not_important',
+};
+var filter = filter_mode.none
+
+// 時刻フォーマット
+const dateoption = new Intl.DateTimeFormat('ja-JP', {
+    hour: 'numeric',
+    minute: 'numeric',
+    second: 'numeric',
+})
+
+// GET
+async function api_request_get(url, method = 'GET') {
+    const response = await fetch(url, {
+        method: method
+    })
+    const json = await response.json()
+    return json
+}
+
+// POST
+async function api_request_post(url, data, method = 'POST') {
+    const query = new URLSearchParams({message: data})
+    const response = await fetch(url, {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+    })
+    const json = await response.json()
+    return json
+}
+
+// PUT (POSTを流用)
+async function api_request_put(url, data) {
+    return api_request_post(url, data, 'PUT')
+}
+
+// DELETE (GETを流用)
+async function api_request_delete(url, data) {
+    return api_request_get(url, 'DELETE')
+}
+
+// Message の POST (edit_id がある場合は PUT)
+async function message_post(data) {
+    var url = server + '/messages'
+    if (edit_id === null) {
+        api_request_post(url, data)
+    } else {
+        url = url + '/' + edit_id
+        api_request_put(url, data)
+    }
+}
+
+// Message の GET (個別 Message)
+async function message_get(id) {
+    url = server + '/messages/' + id
+    api_request_get(url).then(function(value) {
+        display_replace_message(value)
+    })
+}
+
+// Message の GET (全て)
+async function message_get_all() {
+    var url = server + '/messages'
+    if (server_time !== null) {
+        const params = { from_time: server_time };
+        const search_params = new URLSearchParams(params);
+        url += '?' + search_params.toString()
+    }
+    api_request_get(url).then(function(value) {
+        if (Object.keys(value['messages']).length == 0) {
+            if (!$('#messages ul li.message').length) {
+                $('#messages ul').prepend(`<li class="message" id="dummy">ここにはなにもない</li>`)
+            }
+        } else {
+            $('#messages ul .message#dummy').remove()
+            for(var i in value['messages']) {
+                display_add_message(value['messages'][i])
+            }
+        }
+        server_time = value['current_time']
+    })
+}
+
+// 各 Message のボタンに callback を登録
+function register_callback(message_id) {
+    // DELETEボタンが押された時
+    $('button#' + message_id + '.delete').on(
+        'click', function() {
+            url = server + '/messages/' + this.id
+            api_request_delete(url)
+            $(this).parent().remove()
+        }
+    )
+    // EDITボタンが押された時
+    $('button#' + message_id + '.edit').on(
+        'click', function() {
+            edit_id = this.id
+            url = server + '/messages/' + edit_id
+            api_request_get(url).then(function(value) {
+                $('#post_message_name').val(value['name'])
+                $('#post_message_message').val(value['message'])
+                $('button#post_message').html('PUT')
+                $('h3#post').html('PUT ' + edit_id)
+                if (value['important']) {
+                    $('#post_message_important').attr('checked', true)
+                } else {
+                    $('#post_message_important').attr('checked', false)
+                }
+            })
+        }
+    )
+    // ☆/★ボタンが押された時
+    $('button#' + message_id + '.toggle_important').on(
+        'click', function() {
+            url = server + '/messages/' + this.id + '/important'
+            api_request_get(url).then(function(value) {
+                if (value['important']) { // ★の時
+                    api_request_delete(url)
+                } else { // ☆の時
+                    api_request_put(url)
+                }
+            }).then(function(value) {
+                message_get_all()
+            })
+        }
+    )
+}
+
+// message 表示用の HTML 生成(li の中身)
+function display_item(val) {
+    var i = '☆';
+    var o = '';
+    if(val['important']) {
+        i = '★'
+    }
+    if(val['star']==1){
+        o = '★'
+    }
+    else if(val['star']==2){
+        o = '★★'
+    }
+    else if(val['star']==3){
+        o = '★★★'
+    }
+    else if(val['star']==4){
+        o = '★★★★'
+    }
+    else {
+        o = '★★★★★'
+    }
+    var s = dateoption.format(Date.parse(val['time']))
+    var s_update = dateoption.format(Date.parse(val['update_time']))
+    return `${val['id']}  ${o}<br />Name:  ${val['name']}<br />Title:  ${val['title']}<br />Genre:  ${val['genre']}<br />Review:  ${val['message']}<br />Viewing data:  ${val['viewingdata']}</br>Time:  ${s}<br />Update:  ${s_update}<br /><button class='delete' id="${val['id']}">Delete</button><button class="edit" id="${val['id']}">Edit</button><button class="toggle_important" id="${val['id']}">${i}</button>`
+}
+
+// message を li として ul に追加
+function display_add_message(val) {
+    if ($('#messages ul li.message#' + val['id']).length == 0) {
+        // まだ存在しない場合は li を作成
+        $('#messages ul').prepend(`<li class="message" id="${val['id']}"></li>`)
+        $('#messages ul li.message#' + val['id']).hide()
+    }
+    display_replace_message(val)
+}
+
+// message の置き換え(li の中身を val で書き換える)
+// filter の条件に応じて消したり表示したり
+function display_replace_message(val) {
+    $('#messages ul li.message#' + val['id']).empty()
+    $('#messages ul li.message#' + val['id']).append(display_item(val))
+    if (val['important']) {
+        $('#messages ul li.message#' + val['id']).append('<div class="important"></div>')
+        if (filter == filter_mode.not_important) {
+            $('#messages ul li.message#' + val['id']).fadeOut()
+        } else {
+            $('#messages ul li.message#' + val['id']).hide()
+            $('#messages ul li.message#' + val['id']).fadeIn()
+        }
+    } else {
+        $('#messages ul li.message#' + val['id']).append('<div class="not_important"></div>')
+        if (filter == filter_mode.important) {
+            $('#messages ul li.message#' + val['id']).fadeOut()
+        } else {
+            $('#messages ul li.message#' + val['id']).hide()
+            $('#messages ul li.message#' + val['id']).fadeIn()
+        }
+    }
+    register_callback(val['id'])
+}
+
+// HTMLロード後，基本オブジェクトに callback を追加
+$(function () {
+    $('button#get_message').on(
+        'click', function () {
+            message_get_all()
+        })
+    $('button#post_message').on(
+        'click', function () {
+            var data = {
+                name: $('#post_message_name').val().trim(),
+                title: $('#post_message_title').val().trim(),
+                genre: $('#post_message_genre').val().trim(),
+                message: $('#post_message_message').val().trim(),
+                viewingdata: $('#post_message_viewingdata').val().trim(),
+                star: $('#post_message_star').val().trim(),
+                important: $('#post_message_important').prop('checked')
+            }
+            if (data['name'].length == 0 || data['message'].length == 0) {
+                return
+            }
+            message_post(data).then(function(value) {
+                message_get_all()
+            })
+        })
+    $('button#get_message_clear').on(
+        'click', function () {
+            $('#messages ul').empty()
+            server_time = null
+        })
+    $('button#post_message_clear').on(
+        'click', function () {
+            edit_id = null
+            $('button#post_message').html('POST')
+            $('h3#post').html('POST')
+            $('#post_message_result').empty()
+            $('#post_message_message').val('')
+        })
+    $('button#filter_all').on(
+        'click', function () {
+            $('#messages ul li.message').show()
+            filter = filter_mode.none
+        })
+    $('button#filter_not_important').on(
+        'click', function () {
+            $('#messages ul li.message').hide()
+            $('#messages ul li.message .not_important').parent().show()
+            filter = filter_mode.not_important
+        })
+    $('button#filter_important').on(
+        'click', function () {
+            $('#messages ul li.message').hide()
+            $('#messages ul li.message .important').parent().show()
+            filter = filter_mode.important
+        })
+    // 一旦 Messages を取得，あとは interval 毎取得
+    message_get_all()
+    setInterval(message_get_all, interval);
+})
+</script>
+<style>
+/* スタイルシート お好みで．．． */
+input [type=text]{
+    width: 95%;
+}
+ul {
+    /* https://developer.mozilla.org/ja/docs/Web/CSS/CSS_flexible_box_layout */
+    display: flex;
+
+    /* https://developer.mozilla.org/ja/docs/Web/CSS/flex-wrap */
+    flex-wrap: wrap;
+
+    list-style: none; /* ・を消す */
+}
+/* Message の表示スタイル */
+li.message {
+    width: 100%;
+    background: rgb(255, 246, 246);
+    border-radius: 3% 3%;
+    list-style-position: inside;
+    border: 1px solid #caa;
+    padding: 5px;
+}
+/* Button の表示スタイル */
+button {
+    border: 1px solid #a88;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    margin: 1px 1px;
+    transition-duration: 0.4s;
+    cursor: pointer;
+}
+button:hover {
+    background-color: #644;
+    color: #fee;
+}
+button.toggle_important {
+    border: none;
+    background: none;
+    font-size: 16px;
+}
+button.toggle_important:hover {
+    color: black;
+}
+</style>
+</head>
+<body>
+<header></header>
+<div class="container">
+<div class="row">
+
+<div class="col-md-4">
+<h3 id="post">POST</h3>
+
+<form class="form-horizontal">
+    <div class="form-group">
+        <label class="col-sm-3">Name:</label>
+        <input type="text" id="post_message_name" name="name"></div>
+    <div class="form-group">
+        <label class="col-sm-3">Title:</label>
+        <input type="text" id="post_message_title" name="title"></div>
+    <div class="form-group">
+        <label class="col-sm-3">Genre:</label>
+        <select id="post_message_genre" name="genre">
+                <option value="">--Please choose a genre --</option>
+                <option value="Action">Action</option>
+                <option value="Romance">Romance</option>
+                <option value="Horror">Horror</option>
+                <option value="Mystery">Mystery</option>
+                <option value="Documentary">Documentary</option>
+                <option value="Comedy">Comedy</option>
+                <option value="Fantasy">Fantasy</option></select></div> 
+        <div class="form-group">
+        <label class="col-sm-3">Review:</label>
+        <input type="text" id="post_message_message" name="message"></div>
+    <div class="form-group">
+        <label class="col-sm-3">Viewing data:</label>
+        <input type="text" id="post_message_viewingdata" name="viewingdata"></div> 
+        <div class="form-group">
+            <label class="col-sm-3">Stars:</label>
+            <select id="post_message_star" name="star">
+                <option value="">--Please choose a star--</option>
+                <option value="0">0</option>
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+                <option value="5">5</option></select></div>       
+    <div class="form-check">
+        <label class="col-sm-2">stars</label>
+        <input id="post_message_important" class="form-check-input" value="false" type="checkbox"></div>
+</form></br>
+
+<ul>
+<li><button id="post_message" type='button'>POST</button></li>
+<li><button id="post_message_clear" type='button'>Clear</button></li>
+</ul>
+
+<h3>GET</h3>
+
+<ul>
+<button id="get_message">GET</button>
+<button id="get_message_clear">Clear</button>
+</ul>
+</div>
+
+<div class="col-md-8">
+<h3>Filter</h3>
+
+<ul>
+<button id="filter_all">ALL</button>
+<button id="filter_important">★</button>
+<button id="filter_not_important">☆</button>
+</ul>
+
+
+<div id="messages"><ul></ul></div>
+</div>
+
+</div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js" integrity="sha384-IQsoLXl5PILFhosVNubq5LC7Qb9DXgDA9i+tQ8Zj3iwWAwPtgFTxbJ8NT4GN1R8p" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.min.js" integrity="sha384-cVKIPhGWiC2Al4u+LWgxfKTRIcfu0JTxR+EQDz/bgldoEyl4H0zUF0QKbrJ0EcQF" crossorigin="anonymous"></script>
+
+</body>
+</html>
