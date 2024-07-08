@@ -13,20 +13,28 @@ const server = ''
 
 // 更新間隔(msec)
 const interval = 5000
-
 // 編集中の message id
 var edit_id = null
 
 // 取得したサーバの時刻
 var server_time = null
 
-// filter mode (none, important, not_important)
+// filter mode (none, important, not_important)                   
 const filter_mode = {
     none: 'none',
     important: 'important',
     not_important: 'not_important',
+    search_results: 'search_results',
+    Action: 'Action',
+    Romance: 'Romance',
+    Horror: 'Horror',
+    Mystery: 'Mystery',
+    Documentary: 'Documentary',
+    Comedy: 'Comedy',
+    Fantasy: 'Fantasy',
 };
 var filter = filter_mode.none
+
 
 // 時刻フォーマット
 const dateoption = new Intl.DateTimeFormat('ja-JP', {
@@ -94,6 +102,10 @@ async function message_get_all() {
         url += '?' + search_params.toString()
     }
     api_request_get(url).then(function(value) {
+        if (value['image'] ) {
+            img = 'data:' + value['image_type'] + ';base64,' + value['image']
+                    $('#get_message_image').attr("src", img)
+        }
         if (Object.keys(value['messages']).length == 0) {
             if (!$('#messages ul li.message').length) {
                 $('#messages ul').prepend(`<li class="message" id="dummy">ここにはなにもない</li>`)
@@ -177,8 +189,8 @@ function display_item(val) {
     }
     var s = dateoption.format(Date.parse(val['time']))
     var s_update = dateoption.format(Date.parse(val['update_time']))
-    return `${val['id']}  ${o}<br />Name:  ${val['name']}<br />Title:  ${val['title']}<br />Genre:  ${val['genre']}<br />Review:  ${val['message']}<br />Viewing data:  ${val['viewingdata']}</br>Time:  ${s}<br />Update:  ${s_update}<br /><button class='delete' id="${val['id']}">Delete</button><button class="edit" id="${val['id']}">Edit</button><button class="toggle_important" id="${val['id']}">${i}</button>`
-}
+    return `${val['id']}  ${o}<br />Name:  ${val['name']}<br />Title:  ${val['title']}<br /> Genre:  ${val['genre']}<br />Review:  ${val['message']}<br />Viewing data:  ${val['viewingdata']}</br>Time:  ${s}<br />Update:  ${s_update}<br /><button class='delete' id="${val['id']}">Delete</button><button class="edit" id="${val['id']}">Edit</button><button class="toggle_important" id="${val['id']}">${i}</button>`
+}//image: <id='${val['file.image']}' width=100> </br>image_type: ${val['file_type']}</br> image_filename: ${val['file_filename']}</br>
 
 // message を li として ul に追加
 function display_add_message(val) {
@@ -190,9 +202,27 @@ function display_add_message(val) {
     display_replace_message(val)
 }
 
+
+// search_inputの値を取得
+// async function getValue() {
+//     const word = document.getElementById("search_input");
+//     const value = word.value;
+//     return value;
+// }
+
+// async function main() {
+//     const search_word1 = await getValue(); // getValue関数の実行が完了するまで待機
+//     if (typeof search_word1 === 'undefined') console.log("undefined")
+//     return search_word1;
+// }
+
+
 // message の置き換え(li の中身を val で書き換える)
 // filter の条件に応じて消したり表示したり
-function display_replace_message(val) {
+async function display_replace_message(val) {
+    // const search_word = await main();//これを定期的にしてほしい
+    // console.log(search_word);
+    // console.log("a");
     $('#messages ul li.message#' + val['id']).empty()
     $('#messages ul li.message#' + val['id']).append(display_item(val))
     if (val['important']) {
@@ -203,7 +233,8 @@ function display_replace_message(val) {
             $('#messages ul li.message#' + val['id']).hide()
             $('#messages ul li.message#' + val['id']).fadeIn()
         }
-    } else {
+    } 
+    if (val['important']==false){
         $('#messages ul li.message#' + val['id']).append('<div class="not_important"></div>')
         if (filter == filter_mode.important) {
             $('#messages ul li.message#' + val['id']).fadeOut()
@@ -211,9 +242,92 @@ function display_replace_message(val) {
             $('#messages ul li.message#' + val['id']).hide()
             $('#messages ul li.message#' + val['id']).fadeIn()
         }
+    } 
+//search_wordでフィルタはかけれている、clickした時にdisplay_replace_messageが実行されていない→新しいメッセージを取得したときに実行されてる　この関数を実行しようとしてもできない
+//他のフィルタもクリックしたときにdisplay_replace_messageは実行されてない
+    // if (val['title']==search_word){
+    //     console.log("ifが実行されてる");
+    //     $('#messages ul li.message#' + val['id']).append('<div class="search_results"></div>')
+    //     if (filter == filter_mode.search_results) {
+    //         $('#messages ul li.message#' + val['id']).fadeOut()
+    //     } else {
+    //         $('#messages ul li.message#' + val['id']).hide()
+    //         $('#messages ul li.message#' + val['id']).fadeIn()
+    //     }
+    // }
+    if (val['genre']=='Action'){
+        $('#messages ul li.message#' + val['id']).append('<div class="Action"></div>')
+        if (filter == filter_mode.Action) {
+            $('#messages ul li.message#' + val['id']).fadeOut()
+        } else {
+            $('#messages ul li.message#' + val['id']).hide()
+            $('#messages ul li.message#' + val['id']).fadeIn()
+        }
     }
-    register_callback(val['id'])
+    if (val['genre']=='Romance'){
+        $('#messages ul li.message#' + val['id']).append('<div class="Romance"></div>')
+        if (filter == filter_mode.Romance) {
+            $('#messages ul li.message#' + val['id']).fadeOut()
+        } else {
+            $('#messages ul li.message#' + val['id']).hide()
+            $('#messages ul li.message#' + val['id']).fadeIn()
+        }
+    }
+    if (val['genre']=='Horror'){
+        $('#messages ul li.message#' + val['id']).append('<div class="Horror"></div>')
+        if (filter == filter_mode.Horror) {
+            $('#messages ul li.message#' + val['id']).fadeOut()
+        } else {
+            $('#messages ul li.message#' + val['id']).hide()
+            $('#messages ul li.message#' + val['id']).fadeIn()
+        }
+    }
+    if (val['genre']=='Mystery'){
+        $('#messages ul li.message#' + val['id']).append('<div class="Mystery"></div>')
+        if (filter == filter_mode.Mystery) {
+            $('#messages ul li.message#' + val['id']).fadeOut()
+        } else {
+            $('#messages ul li.message#' + val['id']).hide()
+            $('#messages ul li.message#' + val['id']).fadeIn()
+        }
+    }
+    else if (val['genre']=='Documentary'){
+        $('#messages ul li.message#' + val['id']).append('<div class="Documentary"></div>')
+        if (filter == filter_mode.Documentary) {
+            $('#messages ul li.message#' + val['id']).fadeOut()
+        } else {
+            $('#messages ul li.message#' + val['id']).hide()
+            $('#messages ul li.message#' + val['id']).fadeIn()
+        }
+    }
+    if (val['genre']=='Comedy'){
+        $('#messages ul li.message#' + val['id']).append('<div class="Comedy"></div>')
+        if (filter == filter_mode.Comedy) {
+            $('#messages ul li.message#' + val['id']).fadeOut()
+        } else {
+            $('#messages ul li.message#' + val['id']).hide()
+            $('#messages ul li.message#' + val['id']).fadeIn()
+        }
+    }
+    if (val['genre']=='Fantasy'){
+        $('#messages ul li.message#' + val['id']).append('<div class="Fantasy"></div>')
+        if (filter == filter_mode.Fantasy) {
+            $('#messages ul li.message#' + val['id']).fadeOut()
+        } else {
+            $('#messages ul li.message#' + val['id']).hide()
+            $('#messages ul li.message#' + val['id']).fadeIn()
+        }
+    }
+    
+    // register_callback(val['id']) //消した
+    // setTimeout(display_replace_message(val), 10000);
 }
+// async function post_data(data) {
+//     api_request_post(url, data).then(function(value) {
+//         $('#post_message_result').html(value['name'] + ': ' + value['message'])
+//     })
+// }
+
 
 // HTMLロード後，基本オブジェクトに callback を追加
 $(function () {
@@ -226,18 +340,36 @@ $(function () {
             var data = {
                 name: $('#post_message_name').val().trim(),
                 title: $('#post_message_title').val().trim(),
+                image: $("#post_message_image").prop('files')[0],
                 genre: $('#post_message_genre').val().trim(),
                 message: $('#post_message_message').val().trim(),
                 viewingdata: $('#post_message_viewingdata').val().trim(),
                 star: $('#post_message_star').val().trim(),
                 important: $('#post_message_important').prop('checked')
             }
+            
             if (data['name'].length == 0 || data['message'].length == 0) {
                 return
             }
-            message_post(data).then(function(value) {
-                message_get_all()
-            })
+            // file=$("#post_message_image").prop('files')[0]
+            // if (file) {
+            //     console.log("fileに何か入ってはいる");
+            //     read = new FileReader();
+            //     read.readAsBinaryString(file);
+            //     read.onloadend = function(){
+            //         data = Object.assign({}, data, {
+            //             image: btoa(read.result),
+            //             image_type: file.type,
+            //             image_filename: file.name
+            //         });
+            //         message_post(data).then(function(value) {
+            //             message_get_all()
+            //         })
+            //     }}
+            else{
+                message_post(data).then(function(value) {
+                    message_get_all()
+            })}
         })
     $('button#get_message_clear').on(
         'click', function () {
@@ -252,6 +384,37 @@ $(function () {
             $('#post_message_result').empty()
             $('#post_message_message').val('')
         })
+    
+    // $('button#filter_search_results').on(
+    //     'click', async function () {
+    //         // const search_word = await main();
+    //         // console.log('search_wordを表示');
+    //         // console.log(search_word);
+    //         // filter = filter_mode.search_results
+    //         try {
+    //             console.log('tryが実行されている');
+    //             const data = await message_get_all(); // メッセージを再取得して更新
+    //             data.messages.forEach(function(val) {
+            //         if (data['title']==search_word){
+            //             console.log("ifが実行されてる");
+            //             $('#messages ul li.message#' + val['id']).append('<div class="search_results"></div>')
+            //             if (filter == filter_mode.search_results) {
+            //                 $('#messages ul li.message#' + val['id']).fadeOut()
+            //             } else {
+            //                 $('#messages ul li.message#' + val['id']).hide()
+            //                 $('#messages ul li.message#' + val['id']).fadeIn()
+            //             }
+            //         }
+        //             display_replace_message(val); // 各メッセージ情報を渡す
+        //             });
+        //     } catch (error) {    
+        //     }
+        //     $('#messages ul li.message').hide()
+        //     $('#messages ul li.message .search_results').parent().show()
+        //     filter = filter_mode.search_results
+            
+        //     console.log('search_wordを表示');
+        // })
     $('button#filter_all').on(
         'click', function () {
             $('#messages ul li.message').show()
@@ -268,6 +431,48 @@ $(function () {
             $('#messages ul li.message').hide()
             $('#messages ul li.message .important').parent().show()
             filter = filter_mode.important
+        })
+    $('button#filter_Action').on(
+        'click', function () {
+            $('#messages ul li.message').hide()
+            $('#messages ul li.message .Action').parent().show()
+            filter = filter_mode.Action
+        })
+    $('button#filter_Romance').on(
+        'click', function () {
+            $('#messages ul li.message').hide()
+            $('#messages ul li.message .Romance').parent().show()
+            filter = filter_mode.Romance
+        })
+        $('button#filter_Horror').on(
+        'click', function () {
+            $('#messages ul li.message').hide()
+            $('#messages ul li.message .Horror').parent().show()
+            filter = filter_mode.Horror
+        })
+        $('button#filter_Mystery').on(
+        'click', function () {
+            $('#messages ul li.message').hide()
+            $('#messages ul li.message .Mystery').parent().show()
+            filter = filter_mode.Mystery
+        })
+        $('button#filter_Documentary').on(
+        'click', function () {
+            $('#messages ul li.message').hide()
+            $('#messages ul li.message .Documentary').parent().show()
+            filter = filter_mode.Documentary
+        })
+        $('button#filter_Comedy').on(
+        'click', function () {
+            $('#messages ul li.message').hide()
+            $('#messages ul li.message .Comedy').parent().show()
+            filter = filter_mode.Comedy
+        })
+        $('button#filter_Fantasy').on(
+        'click', function () {
+            $('#messages ul li.message').hide()
+            $('#messages ul li.message .Fantasy').parent().show()
+            filter = filter_mode.Fantasy
         })
     // 一旦 Messages を取得，あとは interval 毎取得
     message_get_all()
@@ -336,6 +541,9 @@ button.toggle_important:hover {
     <div class="form-group">
         <label class="col-sm-3">Title:</label>
         <input type="text" id="post_message_title" name="title"></div>
+    <!-- <div class="form-group">   
+        <label class="col-sm-3">image:</label>
+        <input type="file" id="post_message_image" name="image"></div> -->
     <div class="form-group">
         <label class="col-sm-3">Genre:</label>
         <select id="post_message_genre" name="genre">
@@ -357,7 +565,6 @@ button.toggle_important:hover {
             <label class="col-sm-3">Stars:</label>
             <select id="post_message_star" name="star">
                 <option value="">--Please choose a star--</option>
-                <option value="0">0</option>
                 <option value="1">1</option>
                 <option value="2">2</option>
                 <option value="3">3</option>
@@ -367,6 +574,7 @@ button.toggle_important:hover {
         <label class="col-sm-2">stars</label>
         <input id="post_message_important" class="form-check-input" value="false" type="checkbox"></div>
 </form></br>
+<!-- Image: <img id="get_message_image" width=100> -->
 
 <ul>
 <li><button id="post_message" type='button'>POST</button></li>
@@ -375,23 +583,33 @@ button.toggle_important:hover {
 
 <h3>GET</h3>
 
-<ul>
+<!-- <ul>
 <button id="get_message">GET</button>
 <button id="get_message_clear">Clear</button>
 </ul>
-</div>
+</div> -->
 
 <div class="col-md-8">
 <h3>Filter</h3>
+<!-- <input type="text" id="search_input" placeholder="キーワードを入力"> -->
+</br>
 
 <ul>
+<!-- <button id="filter_search_results" >Search</button> -->
 <button id="filter_all">ALL</button>
 <button id="filter_important">★</button>
 <button id="filter_not_important">☆</button>
+<button id="filter_Action">Action</button>
+<button id="filter_Romance">Romance</button>
+<button id="filter_Horror">Horror</button>
+<button id="filter_Mystery">Mystery</button>
+<button id="filter_Documentary">Documentary</button>
+<button id="filter_Comedy">Comedy</button>
+<button id="filter_Fantasy">Fantasy</button>
 </ul>
 
 
-<div id="messages"><ul></ul></div>
+<div id="messages" class="search-target"><ul></ul></div>
 </div>
 
 </div>
